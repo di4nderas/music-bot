@@ -15,23 +15,21 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"⏳ Descargando: {query}")
 
-    # Disparar workflow
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/workflows/download.yml/dispatches"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-    data = {"ref": "master", "inputs": {"query": query}}
-    requests.post(url, json=data, headers=headers)
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
 
-    # Esperar que termine
-    await update.message.reply_text("⏳ Esperando que GitHub Actions termine (1-2 min)...")
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/workflows/download.yml/dispatches"
+    requests.post(url, json={"ref": "master", "inputs": {"query": query}}, headers=headers)
+
+    await update.message.reply_text("⏳ Esperando GitHub Actions (1-2 min)...")
     time.sleep(90)
 
-    # Buscar el artifact
-    runs_url = f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs"
-    runs = requests.get(runs_url, headers=headers).json()
+    runs = requests.get(f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs", headers=headers).json()
     run_id = runs["workflow_runs"][0]["id"]
 
-    artifacts_url = f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs/{run_id}/artifacts"
-    artifacts = requests.get(artifacts_url, headers=headers).json()
+    artifacts = requests.get(f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs/{run_id}/artifacts", headers=headers).json()
 
     if artifacts["total_count"] == 0:
         await update.message.reply_text("❌ No se encontró el archivo.")
@@ -39,9 +37,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     download_url = artifacts["artifacts"][0]["archive_download_url"]
     mp3_data = requests.get(download_url, headers=headers)
-
     await context.bot.send_document(chat_id=chat_id, document=mp3_data.content, filename="musica.zip")
 
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
-app.run_polling()
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.run_polling()
