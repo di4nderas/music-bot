@@ -2,7 +2,7 @@ import os
 import time
 import requests
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
@@ -26,10 +26,16 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Esperando GitHub Actions (1-2 min)...")
     time.sleep(90)
 
-    runs = requests.get(f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs", headers=headers).json()
+    runs = requests.get(
+        f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs",
+        headers=headers
+    ).json()
     run_id = runs["workflow_runs"][0]["id"]
 
-    artifacts = requests.get(f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs/{run_id}/artifacts", headers=headers).json()
+    artifacts = requests.get(
+        f"https://api.github.com/repos/{GITHUB_USER}/{REPO}/actions/runs/{run_id}/artifacts",
+        headers=headers
+    ).json()
 
     if artifacts["total_count"] == 0:
         await update.message.reply_text("❌ No se encontró el archivo.")
@@ -37,9 +43,21 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     download_url = artifacts["artifacts"][0]["archive_download_url"]
     mp3_data = requests.get(download_url, headers=headers)
-    await context.bot.send_document(chat_id=chat_id, document=mp3_data.content, filename="musica.zip")
+    await context.bot.send_document(
+        chat_id=chat_id,
+        document=mp3_data.content,
+        filename="musica.zip"
+    )
+
+async def main():
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
+    await app.stop()
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
-    app.run_polling()
+    import asyncio
+    asyncio.run(main())
